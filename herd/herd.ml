@@ -22,12 +22,16 @@ open Opts
 
 (* Command line arguments *)
 let args = ref []
+(* wz: 定义一个get_cmd_arg的函数？入参给到args，args解引用，再组成一个list? *)
 let get_cmd_arg s = args := s :: !args
 
 (* Helpers *)
 
+(* wz: 这里定义了一个函数，这个函数的返回是一个含有三个元素的tuple, 大概是: *)
+(*     (opt, Arg.String (), sprintf输出的字符串), 如下的很多函数都是这样 *)
 let parse_tag opt set tags msg =
   opt,
+(* wz: 注意，库的名字叫arg，对应的文件是arg.ml *)
   Arg.String
     (fun tag -> match set tag with
     | false ->
@@ -37,7 +41,6 @@ let parse_tag opt set tags msg =
                 opt (String.concat "," tags)))
     | true -> ()),
   sprintf "<%s> %s" (String.concat "|" tags) msg
-
 
 let badarg opt arg ty =
   raise
@@ -129,11 +132,14 @@ let pp_default_model a =
   sprintf "%s=%s" (Archs.pp a)
     (Model.pp (Model.get_default_model !Opts.variant a))
 
+(* wz: 这个函数的输出会拼出options list里的某个entry, 注意一个entry又是一个tuple *)
 let gen_model_opt s =
+(* wz: 这个函数的输入是下面四个 *)
   parse_tag
     s
     (fun tag -> match Model.parse tag with
     | None -> false
+    (* wz: 所以cat的名字是保存在model这个变量里？model这里是Some (File tag) ? *)
     | Some _ as m -> model :=  m ; true)
     Model.tags
     (sprintf " select model, defaults %s, %s, %s, %s, %s, %s, %s"
@@ -145,6 +151,7 @@ let gen_model_opt s =
        (pp_default_model riscv)
        (pp_default_model Archs.c))
 
+(* wz: 定义了一个大的list *)
 let options = [
 (* Basic *)
   ("-version", Arg.Unit
@@ -213,6 +220,7 @@ let options = [
     "show debug messages for specific parts" ;
    parse_bool "-morefences" (ref false) "does nothing (deprecated)" ;
 (* Engine control *)
+(* wz: 这里gen_model_opt要生成一个tuple，补到这里 *)
   gen_model_opt "-model";
   gen_model_opt "-cat";
   parse_tag
@@ -449,11 +457,19 @@ let options = [
    "<name> insert the contents of <name> at the beginning of generated dot files");
 ]
 
+(* wz: 整个herd7的入口, 反正就是遇到let xxx就可以认为是定义一个值，遇到let ()就要执行下 *)
 (* Parse command line *)
 let () =
   try
+    (* wz: 解析到cat存在哪里？*)
     Arg.parse options
+      (* wz: 看arg这个公共module，这个参数的名字是anon_fun，解匿名参数, 所以匿名参数的   *)
+      (*     的引用是args，后面解引用后放到tests里，所以后面可以看到tests就就是MP.litmus *)
+      (*                                                                                 *)
+      (*     我们是~/bin/herd7 -model xxx ./catalogue/aarch64/tests/MP.litmus, 所以       *)
+      (*     MP.litmus是一个匿名参数 *)
       get_cmd_arg
+      (* wz: prog 这里是/home/sherlock/bin/herd7 就是herd这个程序, 看起来prog是预先定义的 *)
       (sprintf "Usage %s [options] [test]*" prog)
   with
   | Misc.Fatal msg -> eprintf "%s: %s\n" prog msg ; exit 2
@@ -462,11 +478,13 @@ let () =
 
 let libfind = Opts.libfind !includes !debug.Debug_herd.files
 
+(* wz: module这里是定义子模块的意思 *)
 module ParserConfig = struct
   let debug = !debug.Debug_herd.lexer
   let libfind =  libfind
 end
 
+(* wz: comma这里是tuple的意思，这里又有太多语法不懂？ *)
 let model,model_opts = match !model with
 | Some (Model.File fname) ->
     let module P = ParseModel.Make(ParserConfig) in
@@ -485,6 +503,7 @@ let model,model_opts = match !model with
 module Verbose =
   struct let verbose = if !debug.Debug_herd.lexer  then !verbose else 0 end
 
+(* wz: 也不是子模块的定义啊？CheckName.Make是啥？ *)
 module Check =
   CheckName.Make
     (struct
@@ -495,6 +514,7 @@ module Check =
       let excl = !excl
     end)
 
+(* wz: 这个语法怎么解释？*)
 (* Read kinds/conds files *)
 module LR = LexRename.Make(Verbose)
 
@@ -503,7 +523,7 @@ let kinds = LR.read_from_files !kinds ConstrGen.parse_kind
 let conds = LR.read_from_files !conds (fun s -> Some s)
 
 (* Configure parser/models/etc. *)
-let () =
+let () = printf "----> wz test 1\n";
   let module Config = struct
     let timeout = !timeout
     let candidates = !candidates
@@ -654,6 +674,7 @@ let () =
       let bi = R.read fname in
       Some (fname,bi) in
 
+(* wz: 这里是啥定义？函数里有一个子module？*)
   let from_file f =
     let module T =
       ParseTest.Top
@@ -665,6 +686,8 @@ let () =
 
 
 (* Just go *)
+(* wz: 打印出来args是catalogue/aarch64/tests/MP.litmus, 这个是没有带-xxx标识的 *)
+  let () = List.iter print_endline !args in
 
   let tests = !args in
 
@@ -689,8 +712,10 @@ let () =
       Config.timeout
       (fun _ -> raise Misc.Timeout)
       !debug.Debug_herd.timeout;
+(* wz: 似乎是从这里读文件？*)
     Misc.fold_argv_or_stdin
       (fun name seen ->
+(* wz: 似乎是从做验证？*)
         try from_file name seen
         with
         | Misc.Timeout -> seen

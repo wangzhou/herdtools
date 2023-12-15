@@ -33,7 +33,9 @@ let tags =
   ]
 
 let parse tag =
+  (* wz: 看起来tag是传入的-model的参数？*)
   if Filename.check_suffix tag ".mdl" || Filename.check_suffix tag ".cat" then
+    (* wz: 我们解析cat应该是返回这个 *)
     Some (File tag)
   else
     match Misc.lowercase tag with
